@@ -13,7 +13,7 @@
 
 ## 📌 Objective
 
-Develop practical log analysis skills using a SIEM platform — covering the benefits of centralized log management, identifying and distinguishing log source types, and performing hands-on threat detection across Windows, Linux, and web application environments using structured query filters.
+Develop practical log analysis skills using a SIEM platform, covering the benefits of centralized log management, identifying and distinguishing log source types, and performing hands-on threat detection across Windows, Linux, and web application environments using structured query filters.
 
 ---
 
@@ -269,7 +269,7 @@ Windows Event Codes number in the hundreds. Knowing which ones matter — and wh
 **Challenge 2: SPL filter construction**
 Building accurate Splunk queries across different log sources required understanding both the SPL syntax and the specific field names available in each log type.
 
-**Resolution:** Worked through each filter methodically — starting with the broadest search, then adding field filters, then stats and thresholds. Understanding *why* each line exists in a query is more valuable than memorizing the query itself.
+**Resolution:** Worked through each filter methodically, starting with the broadest search, then adding field filters, then stats and thresholds. Understanding *why* each line exists in a query is more valuable than memorizing the query itself.
 
 ---
 
