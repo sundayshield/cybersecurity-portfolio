@@ -33,12 +33,12 @@ Develop practical log analysis skills using a SIEM platform, covering the benefi
 Before querying a single log, the room established *why* SIEM exists. Three pillars:
 
 ### Centralization
-Every log from every source — endpoints, network devices, web servers — is collected into one platform. An analyst no longer needs to SSH into individual machines or open log files manually. Everything is searchable from a single interface.
+Every log from every source — endpoints, network devices, web servers is collected into one platform. An analyst no longer needs to SSH into individual machines or open log files manually. Everything is searchable from a single interface.
 
 > Without centralization, investigating a single incident could mean hunting across dozens of separate files on dozens of machines. SIEM eliminates that entirely.
 
 ### Correlation
-SIEM doesn't just store events — it links them. Correlation is the ability to connect separate events across different sources and timelines into a single coherent picture.
+SIEM doesn't just store events, it links them. Correlation is the ability to connect separate events across different sources and timelines into a single coherent picture.
 
 **Example:** A remote login event (network log) + a privilege escalation event (auth log) + a new scheduled task created (system log) = a likely intrusion sequence. Individually, each event might look unremarkable. Correlated, they tell a story.
 
@@ -59,10 +59,10 @@ SIEM stores past events for forensic investigation. When an incident is discover
 Detecting brute force against a local system: multiple failed login attempts from a single source in a short window, followed (or not) by a successful authentication.
 
 ### Network-Based — Key Use Case
-Detecting port scanning: a single external IP sending connection requests across many ports in rapid succession — a reconnaissance pattern before an attack.
+Detecting port scanning: a single external IP sending connection requests across many ports in rapid succession, it a reconnaissance pattern before an attack.
 
 ### Web-Based — Key Use Case
-Detecting web shell exploitation: HTTP POST requests to unexpected `.php`, `.asp`, or `.jsp` file paths that return 200 OK status codes — indicating an attacker has uploaded and is executing server-side scripts.
+Detecting web shell exploitation: HTTP POST requests to unexpected `.php`, `.asp`, or `.jsp` file paths that return 200 OK status codes, it indicating an attacker has uploaded and is executing server-side scripts.
 
 ---
 
@@ -108,17 +108,17 @@ index=win-101 EventCode=3
 
 | Event Code | Meaning | Analyst Use |
 |------------|---------|-------------|
-| `4720` | New user account created | Detect unauthorized account creation — persistence mechanism |
+| `4720` | New user account created | Detect unauthorized account creation, persistence mechanism |
 | `4722` | User account enabled | An attacker may re-enable a disabled account to regain access |
 
 #### Windows System Logs — Service Activity
 
 | Event Code | Meaning | Analyst Use |
 |------------|---------|-------------|
-| `7036` | Service started or stopped | Baseline changes — detect unexpected service starts |
+| `7036` | Service started or stopped | Baseline changes, detect unexpected service starts |
 | `7045` | New service installed | Attackers install services (malware, RATs) as persistence; also covers scheduled tasks |
 
-> **Key insight:** Event Code 7045 is a high-value detection signal. Legitimate software rarely installs new Windows services silently. An unexpected 7045 event — especially for a service with a random or suspicious name — warrants immediate investigation.
+> **Key insight:** Event Code 7045 is a high-value detection signal. Legitimate software rarely installs new Windows services silently. An unexpected 7045 event especially for a service with a random or suspicious name, warrants immediate investigation.
 
 ---
 
@@ -148,13 +148,13 @@ index=linux source="auth.log" *su*
 | sort + _time
 ```
 
-**What to look for:** A standard user account suddenly using `su` or `sudo` to gain root-level privileges — especially if the account has no business requiring elevated access, or if this activity occurs at an unusual hour.
+**What to look for:** A standard user account suddenly using `su` or `sudo` to gain root-level privileges especially if the account has no business requiring elevated access, or if this activity occurs at an unusual hour.
 
 ---
 
 ### 4B — System Logs — Persistence Mechanisms
 
-System logs capture scheduled tasks (cron jobs) and service registrations — two of the most common attacker persistence techniques on Linux.
+System logs capture scheduled tasks (cron jobs) and service registrations, two of the most common attacker persistence techniques on Linux.
 
 **What to look for in cron entries:**
 
@@ -164,7 +164,7 @@ Any cron job referencing executable file types that shouldn't appear in a schedu
 .sh  |  .py  |  .pl  |  .rb  |  bash  |  nc  |  python  |  perl  |  ruby
 ```
 
-A cron job calling `nc` (netcat) or a reverse shell script is a major red flag — attackers use these to maintain persistent remote access even if their initial entry point is patched.
+A cron job calling `nc` (netcat) or a reverse shell script is a major red flag, attackers use these to maintain persistent remote access even if their initial entry point is patched.
 
 ---
 
@@ -220,7 +220,7 @@ index=*
 
 ### 5C — DDoS Detection
 
-**Signature:** An overwhelming volume of requests to a specific endpoint from one or few IPs, causing 503 (Service Unavailable) responses — the server is collapsing under load.
+**Signature:** An overwhelming volume of requests to a specific endpoint from one or few IPs, causing 503 (Service Unavailable) responses, the server is collapsing under load.
 
 **Real case observed:** Over 100,000 requests from a single IP within a 10-minute window.
 
@@ -262,7 +262,7 @@ The room included a practical investigation component. Key findings from log que
 ## 🧩 Challenges & How I Solved Them
 
 **Challenge 1: Volume and variety of Event Codes**
-Windows Event Codes number in the hundreds. Knowing which ones matter — and what each one reveals — felt overwhelming at first.
+Windows Event Codes number in the hundreds. Knowing which ones matter and what each one reveals felt overwhelming at first.
 
 **Resolution:** Focused on understanding the *category* each code belongs to (account activity, service activity, process activity) rather than memorizing individual codes. That framework makes it easier to know where to look when a specific behavior is suspected.
 
@@ -275,15 +275,15 @@ Building accurate Splunk queries across different log sources required understan
 
 ## 💡 Key Learnings
 
-1. **Logs give you direction.** Every attack leaves a trail — logs are that trail. The analyst's job is to follow it back to the root cause. Logs aren't the answer; they're the map.
+1. **Logs give you direction.** Every attack leaves a trail, logs are that trail. The analyst's job is to follow it back to the root cause. Logs aren't the answer; they're the map.
 
-2. **Logs are noisy, not useless.** Raw logs are overwhelming. But properly filtered and structured, they surface exactly what you need. The skill isn't reading logs — it's knowing how to query them.
+2. **Logs are noisy, not useless.** Raw logs are overwhelming. But properly filtered and structured, they surface exactly what you need. The skill isn't reading logs, it's knowing how to query them.
 
 3. **Filtering precision determines investigation quality.** A poorly constructed query drowns you in irrelevant data. A precise one surfaces the one event that matters. The filter is as important as the finding.
 
 4. **Know your source before you search.** Whether you're hunting in `auth.log`, Windows Security logs, or web access logs — each has its own structure, field names, and threat patterns. Knowing which log to search is half the work.
 
-5. **You don't need to memorize every filter — you need to understand every problem.** The right filter follows naturally once you understand what behavior you're looking for. Pattern recognition and analytical thinking outweigh memorization.
+5. **You don't need to memorize every filter, you need to understand every problem.** The right filter follows naturally once you understand what behavior you're looking for. Pattern recognition and analytical thinking outweigh memorization.
 
 ---
 
@@ -291,9 +291,9 @@ Building accurate Splunk queries across different log sources required understan
 
 A Tier 1 SOC analyst spends a significant portion of every shift reading and querying logs. This room reflects that reality directly.
 
-What separates an effective analyst from an overwhelmed one isn't how many Event Codes they've memorized — it's whether they can define the problem first, then construct the right query to surface it. An analyst who understands that `auth.log` is the right place to look for privilege escalation, or that `EventCode=1` surfaces process creation, can investigate efficiently even in an unfamiliar environment.
+What separates an effective analyst from an overwhelmed one isn't how many Event Codes they've memorized, it's whether they can define the problem first, then construct the right query to surface it. An analyst who understands that `auth.log` is the right place to look for privilege escalation, or that `EventCode=1` surfaces process creation, can investigate efficiently even in an unfamiliar environment.
 
-The skills built in this room — log source identification, targeted SPL querying, threat pattern recognition across Windows, Linux, and web layers — map directly to the daily workflow of a blue team analyst performing alert triage, threat hunting, and incident investigation.
+The skills built in this room — log source identification, targeted SPL querying, threat pattern recognition across Windows, Linux, and web layers, map directly to the daily workflow of a blue team analyst performing alert triage, threat hunting, and incident investigation.
 
 ---
 
